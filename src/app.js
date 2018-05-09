@@ -1,13 +1,45 @@
 // Initial tool for defining the caching starting area
 // and the game boundries
 
+var NEAREST_ROAD_ENDPOINT = 'https://roads.googleapis.com/v1/nearestRoads';
+var GOOGLE_API_KEY = 'AIzaSyD_LYoOfB-svb8m17FvZ8_zuIbmaVfnv5I';
+
 var appState = {
   startBounds: null,
   cachingBounds: null,
   map: null,
 }
 
+function concatenateCoordinates(coordinates) {
+  var stringCoordinates = [];
+  coordinates.forEach(function(coordinate) {
+    stringCoordinates.push(coordinate.join());
+  })
+
+  return stringCoordinates.join('|');
+}
+
+function nearestRoad(coordinates) {
+  var params = concatenateCoordinates(coordinates);
+  $.ajax({
+    method: "GET",
+    url: NEAREST_ROAD_ENDPOINT +'?points='+ params +'&key='+ GOOGLE_API_KEY,
+  })
+    .done(function(data) {
+      if(data) {
+        data.snappedPoints.forEach(function(point) {
+          new google.maps.Marker({
+            position: {lat: point.location.latitude, lng: point.location.longitude},
+            map: appState.map,
+          });
+        })
+      }
+    });
+}
+
 function generateMarkers(grid) {
+  var positions = [];
+
   grid.features.forEach(function(feature) {
     var points = [];
 
@@ -15,19 +47,17 @@ function generateMarkers(grid) {
       points.push(turf.point(point));
     });
 
-    var center = turf.center(turf.featureCollection(points));
-    var coords = center.geometry.coordinates;
-
-    new google.maps.Marker({
-      position: {lat: coords[0], lng: coords[1]},
-      map: appState.map,
-    });
+    var gridBbox = turf.bbox(turf.featureCollection(points));
+    var randomnPosition = turf.randomPosition(gridBbox);
+    positions.push(randomnPosition);
   });
+
+  nearestRoad(positions);
 }
 
 function initMap() {
   var map = new google.maps.Map(document.getElementById('map'), {
-    center: {lat: -34.397, lng: 150.644},
+    center: {lat: 50.718880, lng: -3.537581},
     zoom: 8
   });
 
@@ -58,7 +88,7 @@ function initMap() {
       var maxY = appState.cachingBounds.getNorthEast().lng();
 
       var bbox = [minX, minY ,maxX, maxY];
-      var cellSide = 1;
+      var cellSide = 3;
       var options = {units: 'miles'};
       
       var grid = turf.squareGrid(bbox, cellSide, options);
